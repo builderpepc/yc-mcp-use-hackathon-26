@@ -15,6 +15,7 @@ import {
 } from "./src/pulumi-stack.js";
 import { estimateMonthlyCost, totalEstimatedCost } from "./src/cost-estimator.js";
 import { getStack, setStack } from "./src/stack-store.js";
+import { setPulumiSession, getPulumiSession } from "./src/pulumi-session.js";
 
 // ---------------------------------------------------------------------------
 // Server setup
@@ -193,6 +194,58 @@ server.tool(
 );
 
 // ---------------------------------------------------------------------------
+// Tool: configure_pulumi
+// ---------------------------------------------------------------------------
+
+server.tool(
+  {
+    name: "configure_pulumi",
+    description:
+      "Connect your Pulumi Cloud account so the Deploy button can provision real infrastructure. " +
+      "Your AWS credentials stay in Pulumi Cloud and never pass through this server or the AI. " +
+      "Call this once before deploying. Prerequisites: (1) free account at app.pulumi.com, " +
+      "(2) AWS credentials stored in a Pulumi ESC environment and attached to your stack, " +
+      "(3) an access token from app.pulumi.com/account/tokens.",
+    schema: z.object({
+      access_token: z
+        .string()
+        .describe("Pulumi Cloud access token from app.pulumi.com/account/tokens"),
+      org: z
+        .string()
+        .describe("Your Pulumi Cloud organization name (shown top-left after login)"),
+    }),
+  },
+  async ({ access_token, org }) => {
+    // Validate the token by hitting the Pulumi Cloud user endpoint
+    try {
+      const resp = await fetch("https://api.pulumi.com/api/user", {
+        headers: { Authorization: `token ${access_token}`, Accept: "application/vnd.pulumi+8" },
+      });
+      if (!resp.ok) {
+        return text(
+          `Invalid Pulumi access token (HTTP ${resp.status}). ` +
+          `Check your token at app.pulumi.com/account/tokens and try again.`
+        );
+      }
+      const user = (await resp.json()) as { githubLogin?: string; name?: string };
+      const display = user.name ?? user.githubLogin ?? org;
+      setPulumiSession(access_token, org);
+      return text(
+        `Pulumi connected ✓ — logged in as ${display} (org: ${org}).\n\n` +
+        `Before clicking Deploy, make sure your stack has AWS credentials configured via Pulumi ESC:\n` +
+        `  1. Go to app.pulumi.com → Environments\n` +
+        `  2. Create an environment with your AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)\n` +
+        `  3. Attach it to your stack under Stack → Settings → Environments\n\n` +
+        `Once that's done, the Deploy button will provision real AWS infrastructure under your account.`
+      );
+    } catch (e: unknown) {
+      const err = e instanceof Error ? e.message : String(e);
+      return text(`Failed to reach Pulumi Cloud: ${err}`);
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
 // Tool: deploy
 // ---------------------------------------------------------------------------
 
@@ -215,6 +268,16 @@ server.tool(
       });
     }
 
+    const session = getPulumiSession();
+    if (!session) {
+      return object({
+        status: "failed",
+        message:
+          "Pulumi is not configured. Ask the AI to call configure_pulumi with your Pulumi Cloud access token first.",
+        logs: ["[error] No Pulumi session. Call configure_pulumi before deploying."],
+      });
+    }
+
     if (!subprocessSupported) {
       return object({
         status: "failed",
@@ -230,7 +293,7 @@ server.tool(
     try {
       setStack({ ...record, deployStatus: "deploying" });
 
-      await runDeploy(record.workDir, stackId, (line) => {
+      await runDeploy(record.workDir, stackId, session.accessToken, session.org, (line) => {
         logs.push(line.trim());
       });
 

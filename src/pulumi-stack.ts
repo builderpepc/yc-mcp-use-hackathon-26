@@ -113,20 +113,29 @@ export async function runPreview(
 export async function runDeploy(
   workDir: string,
   stackId: string,
+  pulumiToken: string,
+  pulumiOrg: string,
   onLog: (line: string) => void
 ): Promise<void> {
   const { LocalWorkspace } = await import("@pulumi/pulumi/automation");
 
+  // Use Pulumi Cloud as the state backend.
+  // AWS credentials are NOT passed here — they must be configured in the
+  // user's Pulumi Cloud account via ESC (Environments, Secrets, and Configuration).
+  // Pulumi Cloud will inject them automatically when the deployment runs.
+  const projectName = `infra-${stackId}`;
   const stack = await LocalWorkspace.createOrSelectStack(
     { stackName: "dev", workDir },
     {
       workDir,
+      projectSettings: {
+        name: projectName,
+        runtime: "nodejs",
+        backend: { url: "https://api.pulumi.com" },
+      },
       envVars: {
+        PULUMI_ACCESS_TOKEN: pulumiToken,
         PULUMI_CONFIG_PASSPHRASE: process.env.PULUMI_CONFIG_PASSPHRASE ?? "hackathon",
-        PULUMI_BACKEND_URL: `file:///tmp/pulumi-state-${stackId}`,
-        AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID ?? "",
-        AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY ?? "",
-        AWS_REGION: process.env.AWS_REGION ?? "us-east-1",
       },
     }
   );
