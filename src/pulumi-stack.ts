@@ -166,20 +166,23 @@ export async function runDeploy(
   // addEnvironments() takes only the bare environment name — the org is derived
   // from PULUMI_ACCESS_TOKEN. Strip any org/path prefix the user may have included.
   if (escEnvironment) {
-    const envName = escEnvironment.split("/").pop()!;
-    onLog(`[info] Attaching ESC environment: ${envName}`);
+    // Strip org prefix if present, but keep project/env structure.
+    // CLI format: "env" → org/default/env, "project/env" → org/project/env
+    const parts = escEnvironment.split("/");
+    const envRef = parts[0] === pulumiOrg ? parts.slice(1).join("/") : parts.join("/");
+    onLog(`[info] Attaching ESC environment: ${envRef}`);
     try {
-      await stack.addEnvironments(envName);
+      await stack.addEnvironments(envRef);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
       // Extract the full ESC path from Pulumi's error so the user knows exactly where to create it
       const pathMatch = msg.match(/environment '([^']+)' not found/);
-      const escPath = pathMatch ? pathMatch[1] : `${pulumiOrg}/default/${envName}`;
+      const escPath = pathMatch ? pathMatch[1] : `${pulumiOrg}/default/${envRef}`;
       const createUrl = `https://app.pulumi.com/${pulumiOrg}/environments`;
       throw new Error(
-        `ESC environment '${envName}' not found (looked for: ${escPath}). ` +
-        `Go to ${createUrl} and create an environment named '${envName}' with your cloud credentials ` +
-        `under "environmentVariables". Then call configure_pulumi again with esc_environment: "${envName}".`
+        `ESC environment '${envRef}' not found (looked for: ${escPath}). ` +
+        `Go to ${createUrl} and create an environment named '${envRef}' with your cloud credentials ` +
+        `under "environmentVariables". Then call configure_pulumi again with esc_environment: "${envRef}".`
       );
     }
   }

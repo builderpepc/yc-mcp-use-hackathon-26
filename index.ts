@@ -205,8 +205,9 @@ server.tool(
       "Before calling this tool, collect three things from the user: " +
       "(1) their Pulumi access token from app.pulumi.com/account/tokens, " +
       "(2) their Pulumi org name (top-left corner after login), " +
-      "(3) the name of their Pulumi ESC environment containing cloud credentials (e.g. 'aws-credentials' or 'gcp-credentials') — " +
-      "help them create one at app.pulumi.com/environments if they don't have one yet. " +
+      "(3) their Pulumi ESC environment reference in 'project/env-name' format (e.g. 'my-project/aws-credentials') — " +
+      "ask them to check app.pulumi.com/environments for the project and environment name, " +
+      "or help them create one if they don't have one yet. " +
       "Cloud credentials stay in Pulumi ESC and are never passed through this server.",
     schema: z.object({
       access_token: z
@@ -219,10 +220,11 @@ server.tool(
         .string()
         .optional()
         .describe(
-          "The bare name of a Pulumi ESC environment containing cloud credentials, e.g. 'aws-credentials' or 'yc-mcp-use-hackathon'. " +
-          "Use ONLY the environment name itself — do NOT include the org name or any slash-separated prefix. " +
-          "The environment must exist in the user's org at app.pulumi.com/environments. " +
-          "If the user provides a full path like 'my-org/my-env', extract and use only 'my-env'. " +
+          "The Pulumi ESC environment reference containing cloud credentials. " +
+          "Format: 'env-name' if the environment is in the default project, or 'project/env-name' if it is in a named project. " +
+          "Do NOT include the org name prefix — it is derived from the access token automatically. " +
+          "Ask the user to check app.pulumi.com/environments to find their environment's project and name. " +
+          "Example: if Pulumi shows project='my-project' and env='my-env', pass 'my-project/my-env'. " +
           "If omitted, credentials must be available in the server environment instead."
         ),
     }),
