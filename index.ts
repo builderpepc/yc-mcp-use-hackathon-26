@@ -232,11 +232,16 @@ server.tool(
       setPulumiSession(access_token, org);
       return text(
         `Pulumi connected ✓ — logged in as ${display} (org: ${org}).\n\n` +
-        `Before clicking Deploy, make sure your stack has AWS credentials configured via Pulumi ESC:\n` +
-        `  1. Go to app.pulumi.com → Environments\n` +
-        `  2. Create an environment with your AWS credentials (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION)\n` +
-        `  3. Attach it to your stack under Stack → Settings → Environments\n\n` +
-        `Once that's done, the Deploy button will provision real AWS infrastructure under your account.`
+        `Before clicking Deploy, make sure your cloud credentials are stored in Pulumi ESC:\n\n` +
+        `For AWS:\n` +
+        `  1. Go to app.pulumi.com → Environments → Create environment\n` +
+        `  2. Add: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION\n` +
+        `  3. Attach the environment to your stack under Stack → Settings → Environments\n\n` +
+        `For GCP:\n` +
+        `  1. Go to app.pulumi.com → Environments → Create environment\n` +
+        `  2. Add: GOOGLE_CREDENTIALS (full service account JSON), GOOGLE_PROJECT, GOOGLE_REGION\n` +
+        `  3. Attach the environment to your stack under Stack → Settings → Environments\n\n` +
+        `Once credentials are attached, the Deploy button will provision real infrastructure under your account.`
       );
     } catch (e: unknown) {
       const err = e instanceof Error ? e.message : String(e);
@@ -253,7 +258,7 @@ server.tool(
   {
     name: "deploy",
     description:
-      "Deploy a generated infrastructure stack to AWS using Pulumi. Called by the infrastructure graph widget's Deploy button.",
+      "Deploy a generated infrastructure stack to AWS or GCP using Pulumi. Called by the infrastructure graph widget's Deploy button.",
     schema: z.object({
       stackId: z.string().describe("The stack ID to deploy"),
     }),
@@ -271,10 +276,9 @@ server.tool(
     const session = getPulumiSession();
     if (!session) {
       return object({
-        status: "failed",
-        message:
-          "Pulumi is not configured. Ask the AI to call configure_pulumi with your Pulumi Cloud access token first.",
-        logs: ["[error] No Pulumi session. Call configure_pulumi before deploying."],
+        status: "not_configured",
+        message: "Pulumi is not configured.",
+        logs: [],
       });
     }
 
@@ -282,9 +286,9 @@ server.tool(
       return object({
         status: "failed",
         message:
-          "Deploy is not supported in this environment (subprocess blocked). Visualization is still available.",
+          "Pulumi CLI is not available on this server. Install it with: curl -fsSL https://get.pulumi.com | sh",
         logs: [
-          "[error] Pulumi subprocess is not supported in this sandbox environment.",
+          "[error] Pulumi CLI not found. Run: curl -fsSL https://get.pulumi.com | sh, then restart the server.",
         ],
       });
     }

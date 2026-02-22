@@ -1,4 +1,5 @@
 import { mkdirSync, writeFileSync } from "fs";
+import { execSync } from "child_process";
 import type { PreviewEvent } from "./graph-converter.js";
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,7 @@ const WORKDIR_PACKAGE_JSON = JSON.stringify(
     dependencies: {
       "@pulumi/pulumi": "^3.0.0",
       "@pulumi/aws": "^6.0.0",
+      "@pulumi/gcp": "^8.0.0",
     },
   },
   null,
@@ -93,6 +95,8 @@ export async function runPreview(
     }
   );
 
+  execSync("npm install --prefer-offline", { cwd: workDir, stdio: "ignore" });
+
   const events: PreviewEvent[] = [];
   await stack.preview({
     onEvent: (event: unknown) => {
@@ -139,6 +143,9 @@ export async function runDeploy(
       },
     }
   );
+
+  onLog("[info] Installing dependencies...");
+  execSync("npm install --prefer-offline", { cwd: workDir, stdio: "ignore" });
 
   await stack.up({
     onOutput: (line: string) => onLog(line),

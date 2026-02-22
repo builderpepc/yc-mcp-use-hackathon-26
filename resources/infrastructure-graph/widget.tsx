@@ -51,13 +51,28 @@ const InfrastructureGraph: React.FC = () => {
   useEffect(() => {
     if (prevIsDeploying.current && !isDeploying && deployData) {
       const result = deployData.structuredContent as
-        | { status: string; logs: string[] }
+        | { status: string; message?: string; logs: string[] }
         | undefined;
       if (result) {
-        setState({
-          deployStatus: result.status as InfraGraphState["deployStatus"],
-          logs: result.logs ?? [],
-        });
+        if (result.status === "not_configured") {
+          // Reset widget to idle and ask the AI to walk the user through Pulumi setup
+          setState({ deployStatus: "idle", logs: [] });
+          sendFollowUpMessage(
+            "The user clicked the Deploy button but Pulumi isn't configured yet. " +
+            "Please help them set up Pulumi so they can deploy:\n" +
+            "1. Ask them to get a free Pulumi Cloud account at app.pulumi.com if they don't have one\n" +
+            "2. Ask them to create an access token at app.pulumi.com/account/tokens\n" +
+            "3. Ask for their Pulumi org name (shown top-left after login)\n" +
+            "4. Call configure_pulumi with their access token and org name\n" +
+            "5. Then guide them on adding their AWS or GCP credentials to a Pulumi ESC environment\n" +
+            "Be friendly and guide them step by step."
+          );
+        } else {
+          setState({
+            deployStatus: result.status as InfraGraphState["deployStatus"],
+            logs: result.logs ?? [],
+          });
+        }
       }
     }
     prevIsDeploying.current = isDeploying;
@@ -89,7 +104,7 @@ const InfrastructureGraph: React.FC = () => {
     );
   }
 
-  const { nodes, edges, stackId, totalEstimatedCost, description, subprocessSupported } = props;
+  const { nodes, edges, stackId, totalEstimatedCost, description } = props;
   const deployStatus = isDeploying ? "deploying" : (state?.deployStatus ?? "idle");
   const logs = state?.logs ?? [];
 
@@ -104,7 +119,6 @@ const InfrastructureGraph: React.FC = () => {
       : null;
 
   const canDeploy =
-    subprocessSupported &&
     deployStatus !== "deploying" &&
     deployStatus !== "deployed";
 
@@ -113,7 +127,7 @@ const InfrastructureGraph: React.FC = () => {
       ? "Deploying…"
       : deployStatus === "deployed"
       ? "Deployed ✓"
-      : "Deploy to AWS";
+      : "Deploy";
 
   return (
     <McpUseProvider>
@@ -143,11 +157,6 @@ const InfrastructureGraph: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {!subprocessSupported && (
-              <span className="text-xs text-tertiary bg-gray-100 px-2 py-1 rounded">
-                Deploy unavailable
-              </span>
-            )}
             <button
               onClick={handleDeploy}
               disabled={!canDeploy}
