@@ -59,13 +59,18 @@ const InfrastructureGraph: React.FC = () => {
           setState({ deployStatus: "idle", logs: [] });
           sendFollowUpMessage(
             "The user clicked the Deploy button but Pulumi isn't configured yet. " +
-            "Please help them set up Pulumi so they can deploy:\n" +
-            "1. Ask them to get a free Pulumi Cloud account at app.pulumi.com if they don't have one\n" +
-            "2. Ask them to create an access token at app.pulumi.com/account/tokens\n" +
-            "3. Ask for their Pulumi org name (shown top-left after login)\n" +
-            "4. Call configure_pulumi with their access token and org name\n" +
-            "5. Then guide them on adding their AWS or GCP credentials to a Pulumi ESC environment\n" +
-            "Be friendly and guide them step by step."
+            "Please help them set up Pulumi so they can deploy. Guide them step by step:\n" +
+            "1. Ask if they have a Pulumi Cloud account — if not, send them to app.pulumi.com to create a free one\n" +
+            "2. Ask them to create an access token at app.pulumi.com/account/tokens and share it with you\n" +
+            "3. Ask for their Pulumi org name (shown in the top-left corner after login)\n" +
+            "4. Ask if they have a Pulumi ESC environment set up with their cloud credentials (AWS or GCP). " +
+            "If yes, ask for the environment name (e.g. 'aws-credentials' or 'gcp-credentials'). " +
+            "If no, offer to help them create one: go to app.pulumi.com → Environments → Create environment, " +
+            "then add their cloud credentials as environment variables " +
+            "(AWS: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION; " +
+            "GCP: GOOGLE_CREDENTIALS as full service account JSON, GOOGLE_PROJECT, GOOGLE_REGION)\n" +
+            "5. Once you have all the information, call configure_pulumi with: access_token, org, and esc_environment\n" +
+            "Be friendly and patient — this is a one-time setup."
           );
         } else {
           setState({

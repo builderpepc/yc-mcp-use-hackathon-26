@@ -34,7 +34,6 @@ const WORKDIR_PACKAGE_JSON = JSON.stringify(
   {
     name: "infra-stack",
     version: "1.0.0",
-    main: "index.js",
     dependencies: {
       "@pulumi/pulumi": "^3.0.0",
       "@pulumi/aws": "^6.0.0",
@@ -119,7 +118,8 @@ export async function runDeploy(
   stackId: string,
   pulumiToken: string,
   pulumiOrg: string,
-  onLog: (line: string) => void
+  onLog: (line: string) => void,
+  escEnvironment?: string
 ): Promise<void> {
   const { LocalWorkspace } = await import("@pulumi/pulumi/automation");
 
@@ -140,9 +140,36 @@ export async function runDeploy(
       envVars: {
         PULUMI_ACCESS_TOKEN: pulumiToken,
         PULUMI_CONFIG_PASSPHRASE: process.env.PULUMI_CONFIG_PASSPHRASE ?? "hackathon",
+        // AWS credentials (pass through from server env if present)
+        ...(process.env.AWS_ACCESS_KEY_ID && {
+          AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+        }),
+        ...(process.env.AWS_SECRET_ACCESS_KEY && {
+          AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+        }),
+        ...(process.env.AWS_REGION && { AWS_REGION: process.env.AWS_REGION }),
+        // GCP credentials (pass through from server env if present)
+        ...(process.env.GOOGLE_CREDENTIALS && {
+          GOOGLE_CREDENTIALS: process.env.GOOGLE_CREDENTIALS,
+        }),
+        ...(process.env.GOOGLE_PROJECT && {
+          GOOGLE_PROJECT: process.env.GOOGLE_PROJECT,
+        }),
+        ...(process.env.GOOGLE_REGION && {
+          GOOGLE_REGION: process.env.GOOGLE_REGION,
+        }),
       },
     }
   );
+
+  // Attach ESC environment so Pulumi Cloud injects cloud credentials at deploy time.
+  // addEnvironments() takes only the bare environment name — the org is derived
+  // from the PULUMI_ACCESS_TOKEN. Strip any org/path prefix the user may have included.
+  if (escEnvironment) {
+    const envName = escEnvironment.split("/").pop()!;
+    onLog(`[info] Attaching ESC environment: ${envName}`);
+    await stack.addEnvironments(envName);
+  }
 
   onLog("[info] Installing dependencies...");
   execSync("npm install --prefer-offline", { cwd: workDir, stdio: "ignore" });

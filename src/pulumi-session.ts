@@ -1,6 +1,7 @@
 export interface PulumiSession {
   accessToken: string;
   org: string;
+  escEnvironment?: string; // e.g. "my-org/aws-credentials"
   configuredAt: string;
 }
 
@@ -9,8 +10,8 @@ export interface PulumiSession {
 // but for a single-operator or demo deployment this is sufficient.
 let activeSession: PulumiSession | null = null;
 
-export function setPulumiSession(accessToken: string, org: string): void {
-  activeSession = { accessToken, org, configuredAt: new Date().toISOString() };
+export function setPulumiSession(accessToken: string, org: string, escEnvironment?: string): void {
+  activeSession = { accessToken, org, escEnvironment, configuredAt: new Date().toISOString() };
 }
 
 export function getPulumiSession(): PulumiSession | null {

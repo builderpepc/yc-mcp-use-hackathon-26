@@ -201,11 +201,13 @@ server.tool(
   {
     name: "configure_pulumi",
     description:
-      "Connect your Pulumi Cloud account so the Deploy button can provision real infrastructure. " +
-      "Your AWS credentials stay in Pulumi Cloud and never pass through this server or the AI. " +
-      "Call this once before deploying. Prerequisites: (1) free account at app.pulumi.com, " +
-      "(2) AWS credentials stored in a Pulumi ESC environment and attached to your stack, " +
-      "(3) an access token from app.pulumi.com/account/tokens.",
+      "Connect a user's Pulumi Cloud account so the Deploy button can provision real infrastructure. " +
+      "Before calling this tool, collect three things from the user: " +
+      "(1) their Pulumi access token from app.pulumi.com/account/tokens, " +
+      "(2) their Pulumi org name (top-left corner after login), " +
+      "(3) the name of their Pulumi ESC environment containing cloud credentials (e.g. 'aws-credentials' or 'gcp-credentials') — " +
+      "help them create one at app.pulumi.com/environments if they don't have one yet. " +
+      "Cloud credentials stay in Pulumi ESC and are never passed through this server.",
     schema: z.object({
       access_token: z
         .string()
@@ -213,9 +215,19 @@ server.tool(
       org: z
         .string()
         .describe("Your Pulumi Cloud organization name (shown top-left after login)"),
+      esc_environment: z
+        .string()
+        .optional()
+        .describe(
+          "The bare name of a Pulumi ESC environment containing cloud credentials, e.g. 'aws-credentials' or 'yc-mcp-use-hackathon'. " +
+          "Use ONLY the environment name itself — do NOT include the org name or any slash-separated prefix. " +
+          "The environment must exist in the user's org at app.pulumi.com/environments. " +
+          "If the user provides a full path like 'my-org/my-env', extract and use only 'my-env'. " +
+          "If omitted, credentials must be available in the server environment instead."
+        ),
     }),
   },
-  async ({ access_token, org }) => {
+  async ({ access_token, org, esc_environment }) => {
     // Validate the token by hitting the Pulumi Cloud user endpoint
     try {
       const resp = await fetch("https://api.pulumi.com/api/user", {
@@ -229,19 +241,26 @@ server.tool(
       }
       const user = (await resp.json()) as { githubLogin?: string; name?: string };
       const display = user.name ?? user.githubLogin ?? org;
-      setPulumiSession(access_token, org);
+      setPulumiSession(access_token, org, esc_environment);
+
+      const escLine = esc_environment
+        ? `ESC environment: ${org}/${esc_environment} — credentials will be injected automatically at deploy time.`
+        : `No ESC environment set. Credentials will be read from the server environment (.env).\n` +
+          `To use ESC instead, call configure_pulumi again with esc_environment set to your environment name.`;
+
       return text(
         `Pulumi connected ✓ — logged in as ${display} (org: ${org}).\n\n` +
-        `Before clicking Deploy, make sure your cloud credentials are stored in Pulumi ESC:\n\n` +
+        escLine + `\n\n` +
+        `To set up a Pulumi ESC environment with cloud credentials:\n\n` +
         `For AWS:\n` +
         `  1. Go to app.pulumi.com → Environments → Create environment\n` +
-        `  2. Add: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION\n` +
-        `  3. Attach the environment to your stack under Stack → Settings → Environments\n\n` +
+        `  2. Add: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION under environmentVariables\n` +
+        `  3. Call configure_pulumi again with esc_environment: "aws-credentials"\n\n` +
         `For GCP:\n` +
         `  1. Go to app.pulumi.com → Environments → Create environment\n` +
         `  2. Add: GOOGLE_CREDENTIALS (full service account JSON), GOOGLE_PROJECT, GOOGLE_REGION\n` +
-        `  3. Attach the environment to your stack under Stack → Settings → Environments\n\n` +
-        `Once credentials are attached, the Deploy button will provision real infrastructure under your account.`
+        `  3. Call configure_pulumi again with esc_environment: "gcp-credentials"\n\n` +
+        `Once configured, the Deploy button will provision real infrastructure under your account.`
       );
     } catch (e: unknown) {
       const err = e instanceof Error ? e.message : String(e);
@@ -299,7 +318,7 @@ server.tool(
 
       await runDeploy(record.workDir, stackId, session.accessToken, session.org, (line) => {
         logs.push(line.trim());
-      });
+      }, session.escEnvironment);
 
       setStack({ ...record, deployStatus: "deployed" });
 
