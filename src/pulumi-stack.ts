@@ -164,10 +164,26 @@ export async function runDeploy(
 
   // Attach ESC environment so Pulumi Cloud injects cloud credentials at deploy time.
   // addEnvironments() takes only the bare environment name — the org is derived
-  // from the PULUMI_ACCESS_TOKEN. Strip any org/path prefix the user may have included.
+  // from PULUMI_ACCESS_TOKEN. Strip any org/path prefix the user may have included.
   if (escEnvironment) {
     const envName = escEnvironment.split("/").pop()!;
-    onLog(`[info] Attaching ESC environment: ${envName}`);
+
+    // Validate the environment exists before attempting to attach it.
+    // Pulumi ESC environments live at <org>/default/<name> by default.
+    const escProject = "default";
+    const checkUrl = `https://api.pulumi.com/api/esc/environments/${pulumiOrg}/${escProject}/${envName}`;
+    const checkResp = await fetch(checkUrl, {
+      headers: { Authorization: `token ${pulumiToken}`, Accept: "application/json" },
+    });
+    if (!checkResp.ok) {
+      const createUrl = `https://app.pulumi.com/${pulumiOrg}/environments/${escProject}/${envName}`;
+      throw new Error(
+        `ESC environment '${envName}' not found at ${pulumiOrg}/${escProject}/${envName}. ` +
+        `Create it at: ${createUrl} — add your cloud credentials under "environmentVariables", then retry.`
+      );
+    }
+
+    onLog(`[info] Attaching ESC environment: ${pulumiOrg}/${escProject}/${envName}`);
     await stack.addEnvironments(envName);
   }
 
