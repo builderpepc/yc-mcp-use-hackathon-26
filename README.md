@@ -3,6 +3,8 @@
 
 A simple solution for non-technical builders to get their projects deployed on the cloud by chatting with the AI they already use.
 
+<img width="640" height="759" alt="image" src="https://github.com/user-attachments/assets/3e188aec-8f0e-48b2-a441-fd2c2360162e" />
+
 ## How it works
 
 1. User adds our MCP App  
