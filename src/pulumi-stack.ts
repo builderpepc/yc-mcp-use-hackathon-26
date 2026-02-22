@@ -167,24 +167,21 @@ export async function runDeploy(
   // from PULUMI_ACCESS_TOKEN. Strip any org/path prefix the user may have included.
   if (escEnvironment) {
     const envName = escEnvironment.split("/").pop()!;
-
-    // Validate the environment exists before attempting to attach it.
-    // Pulumi ESC environments live at <org>/default/<name> by default.
-    const escProject = "default";
-    const checkUrl = `https://api.pulumi.com/api/esc/environments/${pulumiOrg}/${escProject}/${envName}`;
-    const checkResp = await fetch(checkUrl, {
-      headers: { Authorization: `token ${pulumiToken}`, Accept: "application/json" },
-    });
-    if (!checkResp.ok) {
-      const createUrl = `https://app.pulumi.com/${pulumiOrg}/environments/${escProject}/${envName}`;
+    onLog(`[info] Attaching ESC environment: ${envName}`);
+    try {
+      await stack.addEnvironments(envName);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      // Extract the full ESC path from Pulumi's error so the user knows exactly where to create it
+      const pathMatch = msg.match(/environment '([^']+)' not found/);
+      const escPath = pathMatch ? pathMatch[1] : `${pulumiOrg}/default/${envName}`;
+      const createUrl = `https://app.pulumi.com/${pulumiOrg}/environments`;
       throw new Error(
-        `ESC environment '${envName}' not found at ${pulumiOrg}/${escProject}/${envName}. ` +
-        `Create it at: ${createUrl} — add your cloud credentials under "environmentVariables", then retry.`
+        `ESC environment '${envName}' not found (looked for: ${escPath}). ` +
+        `Go to ${createUrl} and create an environment named '${envName}' with your cloud credentials ` +
+        `under "environmentVariables". Then call configure_pulumi again with esc_environment: "${envName}".`
       );
     }
-
-    onLog(`[info] Attaching ESC environment: ${pulumiOrg}/${escProject}/${envName}`);
-    await stack.addEnvironments(envName);
   }
 
   onLog("[info] Installing dependencies...");
