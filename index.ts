@@ -315,6 +315,15 @@ server.tool(
     }
 
     const logs: string[] = [];
+
+    // Trim logs for the tool response to stay within token limits.
+    // Drop [debug] lines (pure noise) and cap at 80 lines, truncating each to 200 chars.
+    const trimLogs = (raw: string[]) =>
+      raw
+        .filter((l) => !l.startsWith("[debug]"))
+        .slice(-80)
+        .map((l) => (l.length > 200 ? l.slice(0, 197) + "…" : l));
+
     try {
       setStack({ ...record, deployStatus: "deploying" });
 
@@ -331,7 +340,7 @@ server.tool(
       return object({
         status: "deployed",
         message: `Deployed successfully. ~${created} resources created.`,
-        logs,
+        logs: trimLogs(logs),
       });
     } catch (e: unknown) {
       const err = e instanceof Error ? e.message : String(e);
@@ -341,7 +350,7 @@ server.tool(
       return object({
         status: "failed",
         message: `Deploy failed: ${err}`,
-        logs,
+        logs: trimLogs(logs),
       });
     }
   }
